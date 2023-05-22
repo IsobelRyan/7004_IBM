@@ -1,0 +1,1548 @@
+---
+title: "QBIO7004 - Individual-Based Modelling"
+subtitle: "Simulating Anemonefish Population Size After Bleaching Events"
+author: "Isobel Ryan"
+date: "2023-05-11"
+output: rmdformats::readthedown
+---
+
+```{css, echo = FALSE}
+body {
+  text-align: justify;
+}
+```
+
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(results = 'hide', eval = TRUE, fig.align = "center", fig.pos = "H", out.extra = "", fig.width = 4, fig.height = 3)
+```
+
+
+# 1.0 Motivation 
+
+In the face of climate change, devastating consequences of rising sea temperatures are becoming increasingly evident on coral reefs, with thermal bleaching events causing habitat degradation and the loss of biodiversity (Ceballos et al. 2015; Fardila et al. 2017). These events have been increasingly observed across the Great Barrier Reef, with documented occurrences in 2016, 2017, 2020, and 2022 (Great Barrier Marine Park Authority et al. 2022). Projections indicate that these events will become more frequent and severe as sea surface temperatures continue to rise (Hoegh-Guldberg 1999; Hoegh-Guldberg et al. 2007). The consequences of these temperature changes are particularly alarming for coral reef communities, as they trigger thermal stress responses in corals, leading to the expulsion of their symbionts (Hughes et al. 2003). In severe cases, corals are unable to recover and may perish, leading to loss of habitat for many other species that depend on them (Munday 2004; Pratchett et al. 2006). Thus, habitat specialists within coral reef communities are particularly vulnerable to habitat degradation, as they rely on specific resources or conditions for their survival (Munday 2004; Pratchett et al. 2006).
+
+Similar to corals, anemones are susceptible to thermal bleaching, which has profound negative impacts on anemonefish specialists which depend on these host organisms for survival (Figure 1.0; Hobbs et al. 2013). Anemonefish are considered to be site-attached to anemone hosts throughout all stages of life except for the pelagic larval stage (Allen 1972). The relationship between these organisms is considered to be mutually beneficial as anemone hosts provide areas of refuge and suitable spawning sites whereas, anemonefish provide protection from predators, aeration for tentacle expansion and ammonia inputs to increase tissue growth and regeneration (Fautin & Allen 1992; Holbrook & Schmidt 2005; Cleveland et al. 2011). Bleached anemones, however, have been observed to experience declines in size and health and, as a result, anemonefish inhabitants residing in bleached anemone hosts have experienced elevated stress responses and declines in recruitment and fecundity (Saenz-Agudelo et al. 2011; Beldade et al. 2017, Hoepner et al. 2019). Consequently, anemonefish have been observed to venture beyond their original bleached host in search of a healthier alternative (Hattori 2005; Hoepner & Fobert 2021). However, some studies have also reported that anemonefish remain in bleached hosts, as documented by Branconi et al. (2020). As bleaching events continue to rise in frequency and intensity, it would be highly valuable to model the potential impacts that these events may have on anemonefish habitat specialists. 
+
+<figure>
+  <center>
+    <img src="anemone_bleaching.png" width="500" height="500">
+  <figcaption>*Figure 1.0: Bleached anemone species hosting various anemonefish species. (Image Source: Hobbs et al. 2013).* </figcaption>
+    </center>
+</figure>
+
+\
+
+In this report, I aimed to use stochastic individual-based modelling to determine how bleaching events impact the population size of anemonefish specialists. The model simulates anemonefish recruitment, specifically each of the different anemonefish life stages, and incorporates various parameter values to investigate how varying bleaching intensities impacts host anemones and consequently, anemonefish inhabitants. The parameter space was then screened to determine the level of bleaching severity that causes the most significant reduction in population size. Specifically, I hypothesised that higher levels of bleaching severity would lead to the most significant reductions in anemonefish population sizes. 
+
+
+# 2.0 Description of Model 
+
+## 2.1 Model Parameters 
+
+Relevant literature was reviewed prior to constructing the model to ensure the implemented mechanisms and processes were biologically accurate. Considering the complexity of anemonefish recruitment networks, the model fails to include all aspects, however, the parameters which I thought to be most important were included, as discussed below. 
+
+To begin, the anemone host population size and time in years was specified to simulate an initial anemone population.
+
+```{r, eval = FALSE}
+
+# Define the initial conditions
+
+# Determine the time in years for the simulation to run over
+time_in_years <- 1
+
+# Define anemone parameters
+anemone_pop_size <- 16 # the number of anemone hosts 
+
+# Make a list to combine all the parameters for anemone hosts:
+anem_params <- list(anemone_pop_size = anemone_pop_size)
+
+```
+
+The anemonefish parameters were then specified which were specific to each of the different life stages. There are five life stages in the anemonefish lifecycle: egg, larval, recruit, juvenile and adult. The larval stage is characterised by an oceanic phase where the larvae are suspended in the water column thus, survival is largely influenced by environmental conditions and predation (Roux et al. 2019). The other life stages are termed reef phases since anemonefish settle into an anemone host and consequently, survival is largely influenced by host quality, predation and competition (Roux et al. 2019). For the egg life stage, I included parameters for the probability of finding a suitable partner and probability of mating. These parameters were specified as a value between 0 and 1 with a mean of 0.8 since anemonefish lay roughly every 2 to 3 weeks and most anemone hosts have only a single breeding dominant female and male (Roux et al. 2020). Predation and competition rates were also specified for the oceanic and reef phases where the parameter values represented the vulnerability of individuals in each of the different phases. 
+
+```{r, eval=FALSE}
+# Parameters  -------------------------------------------------------------
+
+# Make a list to combine all the parameters for anemonefish
+anemfish_params <- list(prob_of_suitable_partner = rnorm(sample(0:1, anemone_pop_size, replace = TRUE), 0.8, 0.1), # mean of 0.8 and sd of 0.1
+                        prob_of_mating = rnorm(sample(0:1, anemone_pop_size, replace = TRUE), 0.8, 0.1),  
+                        predation_rate_oceanic_phase = 0.7, 
+                        predation_rate_reef_phase = 0.05, 
+                        competition_oceanic_phase = 0.7, 
+                        competition_reef_phase = 0.05)
+```
+
+Once having defined the initial population, a bleaching event was simulated using parameters to define the probability of a bleaching event occurring and the mortality threshold of anemones (i.e., at what point do anemones not recover from bleaching). Based on unpublished data, anemones usually recover from bleaching when heightened sea surface temperatures do not extend over long time periods. Thus, the mortality threshold was set to 0.7, where bleaching severities above this value resulted in anemone mortality. 
+
+```{r}
+# Make a list to combine all the parameters for bleaching events
+bleaching_event_params <- list(prob_of_bleaching_event = 0.5,
+                               anemone_mortality_threshold = 0.7) 
+```
+
+## 2.2 Model Functions 
+
+Using the above initial conditions and parameter values, separate functions were used to simulate an initial population of anemonefish and anemone hosts. The initial population then looped through several functions which determined the survival of each life stage. To model the initial population, the function specified the oral disc area (ODA), a metric used to measure anemone size, for each anemone using a specified mean and standard deviation. Anemone ODA followed the same range as seen in an unpublished dataset. Specifically, for the *Entacmaea quadricolor* species, ODA ranged between 100 to 2500cm$^2$, where most anemones measured around 1000cm$^2$. The size of each anemone was then used to determine the carrying capacity. In the unpublished dataset, the number of inhabitants increased linearly with anemone size and thus, I specified different carrying capacity ranges for different anemone size ranges. 
+
+Furthermore, the number of adults was specified as a value between 1 and 4, which was further divided to specify the number of male and females. The number of females ranged between 0 and 2, considering there is usually only one dominant breeding female in a group as anemonefish are protandrous hermaphrodites and exhibit a size dominance hierarchy (Roux et al. 2020). The option for two females was provided for larger anemones where there is more space to allow for protected territories. Finally, values for the ODA, carrying capacity, adults, females and males were ordered from smallest to largest, as larger anemones have a higher carrying capacity and thus, more anemonefish inhabitants (Mitchell & Dill 2005; Kobayashi & Hattori 2006). 
+
+```{r, eval = FALSE}
+# Functions to model each lifestage ---------------------------------------
+
+# Function 1: Model the initial population size of anemonefish on anemone hosts --------
+anemonefish_initial_population <- function(anemfish_params, anem_params) {
+  # Determine size of current anemonefish population:
+  # Create an empty data frame
+  df <- data.frame(time_step = integer(), 
+                         anemone_oral_disc_area = numeric(),
+                         carrying_capacity = integer(),
+                         eggs = integer(),
+                         larvae = integer(),
+                         recruits = integer(),
+                         juveniles = integer(),
+                         adults = integer(),
+                         males = integer(),
+                         females = integer())
+  
+  # Calculate the sum of anemonefish population size and assign anemonefish group size for each anemone host:
+  for (i in 1:anem_params$anemone_pop_size) {
+    # Generate randomly drawn samples for the number of anemonefish for each life stage
+    anemone_oral_disc_area <- sort(rnorm(runif(anem_params$anemone_pop_size, min = 100, max = 2500), mean = 1000, sd = 250))
+    
+    # Calculate the carrying capacity for each anemone based on size: 
+    if(anemone_oral_disc_area[i] <= 500) {
+      carrying_capacity <- sample(0:10, anem_params$anemone_pop_size, replace = TRUE)
+    } else {
+      if (anemone_oral_disc_area[i] > 500 & anemone_oral_disc_area[i] <= 2000) {
+        carrying_capacity <- sample(10:30, anem_params$anemone_pop_size, replace = TRUE)
+      } else {
+        carrying_capacity <- sample(30:35, anem_params$anemone_pop_size, replace = TRUE)
+      }
+    }
+    
+    # Generate values for the first time step where the adults and consequently, males and females are randomly assigned initially 
+    row_data <- data.frame(time_step = rep(1, anem_params$anemone_pop_size),
+                           anemone_oral_disc_area = anemone_oral_disc_area,
+                           carrying_capacity = carrying_capacity,
+                           eggs = rep(0, anem_params$anemone_pop_size),
+                           larvae = rep(0, anem_params$anemone_pop_size),
+                           recruits = rep(0, anem_params$anemone_pop_size),
+                           juveniles = rep(0, anem_params$anemone_pop_size),
+                           adults = sort(sample(1:4, anem_params$anemone_pop_size, replace = TRUE, prob = c(0.2, 0.6, 0.6, 0.4))),
+                           females = sort(sample(0:2, anem_params$anemone_pop_size, replace = TRUE, prob = c(0.1, 0.8, 0.1))))
+    
+    # Calculate the number of males for the current index
+    row_data$males <- (row_data$juveniles + row_data$adults) - row_data$females
+    
+    # Add the new data to the initalised data frame
+    init_pop <- rbind(df, row_data)
+  }
+  
+  # Return the completed data frame
+  return(init_pop)
+}
+```
+
+The dataframe from the previous function was then used to determine the number of eggs produced within each anemone host. This was determined in relation to the number of females with at least one male in the group in addition to the parameters: probability of mating and probability of finding a suitable partner. The number of eggs was calculated with reference to anemonefish egg clutches typically ranging between 100 and 1500 (Roux et al. 2020). 
+
+```{r, eval = FALSE}
+# Function 2: Model egg production life stage --------
+anemonefish_lifestage_egg <- function(init_pop, anemfish_params, anem_params) {
+  
+  # Assign initial population values to another object to avoid altering the initial population
+  eggs_pop <- init_pop
+  
+  # Determine number of eggs produced by each female:
+  eggs <- rep(0, nrow(eggs_pop)) # initalise egg column with 0s
+  
+  # Calculate number of eggs where males and females are greater than 1:
+  for (i in 1:nrow(eggs_pop)) {
+    if (eggs_pop$females[i] >= 1 & eggs_pop$males[i] >= 1) {
+      eggs[i] <- round(eggs_pop$females[i] * anemfish_params$prob_of_suitable_partner[i] * anemfish_params$prob_of_mating[i] * 1000)
+    } else {
+      eggs[i] <- 0
+    }
+  }
+  
+  # Create new dataframe to add the new values for the number of eggs 
+  time_step_2 <- data.frame(time_step = rep(2, anemone_pop_size), 
+                            anemone_oral_disc_area = eggs_pop$anemone_oral_disc_area,
+                            carrying_capacity = eggs_pop$carrying_capacity,
+                            eggs = eggs,
+                            larvae = eggs_pop$larvae,
+                            recruits = eggs_pop$recruits,
+                            juveniles = eggs_pop$juveniles,
+                            adults = eggs_pop$adults,
+                            males = eggs_pop$males,
+                            females = eggs_pop$females)
+  
+  # Bind the new subset to the existing data frame
+  new_pop_egg <- rbind(eggs_pop, time_step_2)
+  
+  # Return the new data frame 
+  return(new_pop_egg)
+}
+
+```
+
+The dataframe modelling egg production was then used to determine the number of eggs which successfully hatched to become larvae. This was determined based on the predation rate and competition level for the oceanic phase where higher values of these parameters results in a lower probability of survival. Ismail et al (2023) reported that only ~21.16% of anemonefish eggs successfully hatch within a clutch. This was reflected in the model where the probability of survival was calculated as ~24%.  
+
+```{r, eval = FALSE}
+# Function 3: Model the larval life stage ---------------------------------
+anemonefish_lifestage_larval <- function(new_pop_egg, anemfish_params, anem_params) {
+  # Determine the number of surviving larvae when considering the impacts of predation and environmental factors:
+  # Assign eggs to new variable to determine the amount which survived to become larvae:
+  larvae <- new_pop_egg$eggs[new_pop_egg$time_step == 2]
+  for (i in 1:length(larvae)) {
+    if (larvae[i] > 0) {
+      # Determine the number of anemonefish eggs that successfully hatched to become larvae:
+      prob_of_survival_oceanic <- exp(-anemfish_params$predation_rate_oceanic_phase - anemfish_params$competition_oceanic_phase)
+      surviving_larvae <- round(larvae[i] * prob_of_survival_oceanic)
+      larvae[i] <- surviving_larvae
+    } else {
+      larvae[i] <- 0
+    }
+  }
+  
+  # Create new dataframe to add the new values for the number of eggs
+  time_step_3 <- data.frame(time_step = rep(3, length(larvae)), 
+                            anemone_oral_disc_area = new_pop_egg$anemone_oral_disc_area[new_pop_egg$time_step == 2],
+                            carrying_capacity = new_pop_egg$carrying_capacity[new_pop_egg$time_step == 2],
+                            eggs = rep(0, length(larvae)),
+                            larvae = larvae,
+                            recruits = new_pop_egg$recruits[new_pop_egg$time_step == 2],
+                            juveniles = new_pop_egg$juveniles[new_pop_egg$time_step == 2],
+                            adults = new_pop_egg$adults[new_pop_egg$time_step == 2],
+                            males = new_pop_egg$males[new_pop_egg$time_step == 2],
+                            females = new_pop_egg$females[new_pop_egg$time_step == 2])
+  
+  # Bind the new subset to the existing data frame
+  new_pop_larvae <- rbind(new_pop_egg, time_step_3)
+  
+  # Return the new dataframe 
+  return(new_pop_larvae)
+}
+
+```
+
+The number of larvae which transitioned to become recruits was then determined using the predation and competition parameters for the reef phase. There is limited research on the survival of recruit and later life stages, thus, it was assumed that survival increased throughout the life stages. The successful recruits were randomly distributed between each of the anemone hosts to simulate settlement. Anemonefish either return and settle in natal reefs or can relocate to other reefs, however, to keep the model simple, I assumed that all anemonefish recruits returned to the same natal reef. This function also utilised a loop to ensure the number of recruits, juveniles and adults never exceeded the carrying capacity. If so, the excess individuals were removed and were assumed to have relocated or died. 
+
+```{r, eval = FALSE}
+# Function 4: Model the recruit life stage ---------------------------
+anemonefish_lifestage_recruit <- function(new_pop_larvae, anemfish_params, anem_params) {
+
+  # Assign larvae to new object name 
+  time_step_3 <- new_pop_larvae[new_pop_larvae$time_step == 3, ]
+  # Specify current capacity for this time step
+  current_capacity <- time_step_3$carrying_capacity
+  # Intialise columns
+  current_size <- numeric(nrow(time_step_3))
+  spots_left <- numeric(nrow(time_step_3))
+  
+  # Determine the number of anemonefish larvae that successfully survived to become recruits:
+  for (i in 1:nrow(time_step_3)) {
+    recruits <- time_step_3[i, "larvae"]
+    prob_of_survival_reef <- exp(-anemfish_params$predation_rate_reef_phase - anemfish_params$competition_reef_phase)
+    surviving_recruits <- round(recruits * prob_of_survival_reef)
+    
+    # Allocate recruits to anemones based on oral disc area
+    recruit_dispersal_prob <- time_step_3$anemone_oral_disc_area / sum(time_step_3$anemone_oral_disc_area)
+    
+    # Randomly allocate the recruits based on the probabilities:
+    allocated_recruits <- rbinom(nrow(time_step_3), size = surviving_recruits, prob = recruit_dispersal_prob)
+    
+    # Check if the sum of allocated recruits, juveniles, and adults exceeds the carrying capacity:
+    current_size <- rowSums(cbind(allocated_recruits, time_step_3$juveniles, time_step_3$adults))
+    spots_left <- pmax(current_capacity - current_size, 0)
+    
+    if (sum(allocated_recruits[i] + time_step_3$juveniles[i] + time_step_3$adults[i]) <= current_capacity[i]) {
+      allocated_recruits[i] <- allocated_recruits[i]
+    } else {
+      allocated_recruits[i] <- spots_left[i]
+    }
+  }
+  
+  # Create new dataframe to add the new values for the number of eggs 
+  time_step_4 <- data.frame(time_step = rep(4, nrow(time_step_3)), 
+                            anemone_oral_disc_area = time_step_3$anemone_oral_disc_area,
+                            carrying_capacity = time_step_3$carrying_capacity,
+                            eggs = rep(0, nrow(time_step_3)),
+                            larvae = rep(0, nrow(time_step_3)),
+                            recruits = allocated_recruits,
+                            juveniles = time_step_3$juveniles,
+                            adults = time_step_3$adults,
+                            males = time_step_3$males,
+                            females = time_step_3$females)
+  
+  # Bind the new subset to the existing data frame
+  new_pop_recruits <- rbind(new_pop_larvae, time_step_4)
+  
+  # Return new dataframe 
+  return(new_pop_recruits)
+}
+```
+
+The transition from recruits to juveniles was modelled using the previous dataframe for the recruits and parameters for competition and survival for the reef phase. The predation and competition parameters were assumed to be lower than those of recruits. 
+
+```{r, eval = FALSE}
+# Function 5: Model the juvenile life stage  ----------------------
+anemonefish_lifestage_juvenile <- function(new_pop_recruits, anemfish_params, anem_params) {
+  
+  # Assign previous timestep to new object variable
+  time_step_4 <- new_pop_recruits[new_pop_recruits$time_step == 4, ]
+  
+  # Initiate empty columns
+  surviving_juveniles <- numeric(nrow(time_step_4))
+  current_size <- numeric(nrow(time_step_4))
+  spots_left <- numeric(nrow(time_step_4))
+  
+  # Assign recruits from time to new variable 
+  juveniles <- time_step_4$recruits # recruits from previous time step now become juveniles
+  
+  # Determine the number of anemonefish recruits that successfully survived to become juveniles:
+  prob_of_survival_reef <- exp(-anemfish_params$predation_rate_reef_phase - anemfish_params$competition_reef_phase)
+  
+  # Assign current capacity to the previous capacity 
+  current_capacity <- time_step_4$carrying_capacity
+  
+  for (i in 1:nrow(time_step_4)) {
+    
+    # Update the number of juveniles in the new data frame using the probability of survival 
+    surviving_juveniles[i] <- round(juveniles[i] * prob_of_survival_reef)
+
+    # Check if the sum of recruits, juveniles, and adults exceeds the carrying capacity:
+    current_size[i] <- surviving_juveniles[i] + time_step_4$adults[i]
+    spots_left[i] <- max(0, current_capacity[i] - current_size[i])
+    juveniles[i] <- ifelse(current_size[i] <= current_capacity[i], 
+                           surviving_juveniles[i], 
+                           spots_left[i])
+  }
+  
+  # Create new dataframe to add the new values for the number of eggs 
+  time_step_5 <- data.frame(time_step = rep(5, nrow(time_step_4)), 
+                            anemone_oral_disc_area = time_step_4$anemone_oral_disc_area,
+                            carrying_capacity = time_step_4$carrying_capacity,
+                            eggs = rep(0, nrow(time_step_4)),
+                            larvae = rep(0, nrow(time_step_4)),
+                            recruits = rep(0, nrow(time_step_4)),
+                            juveniles = juveniles,
+                            adults = time_step_4$adults,
+                            males = time_step_4$males,
+                            females = time_step_4$females)
+  
+  # Bind the new subset to the existing data frame
+  new_pop_juveniles <- rbind(new_pop_recruits, time_step_5)
+  
+  # Return the new dataframe 
+  return(new_pop_juveniles)
+}
+```
+
+Finally, the transition from juveniles to adults was modelled using the previous dataframe for the juveniles along with parameters for competition and survival for the reef phase. These parameters were assigned lower values than those used for the juveniles and recruits. The number of males was also updated in relation to the carrying capacity, where the new adults were all assumed to be non-dominant males. The number of females was not changed since there is usually only one dominant breeding female in the size dominance hierarchy. 
+
+```{r, eval = FALSE}
+# Function 6: Model the adult life stage ----------------------
+anemonefish_lifestage_adult <- function(new_pop_juveniles, anemfish_params, anem_params) {
+  # Assign the previous time step to a new object variable 
+  time_step_5 <- new_pop_juveniles[new_pop_juveniles$time_step == 5, ]
+    
+  # Initialize empty columns 
+  males_in_group <- numeric(nrow(time_step_5))
+  surviving_adults <- numeric(nrow(time_step_5))
+  current_size <- numeric(nrow(time_step_5))
+  spots_left <- numeric(nrow(time_step_5))
+  adults <- numeric(nrow(time_step_5))
+  
+  # Specify current capacity
+  current_capacity <- time_step_5$carrying_capacity
+  
+  # Assign juveniles to adults 
+  new_adults <- time_step_5$juveniles
+  
+  # Determine the number of anemonefish juveniles that successfully survived to become adults:
+  for (i in 1:nrow(time_step_5)) {
+    prob_of_survival_reef <- exp(-anemfish_params$predation_rate_reef_phase - anemfish_params$competition_reef_phase)
+    surviving_adults[i] <- round(new_adults[i] * prob_of_survival_reef) + time_step_5$adults[i]
+
+    # Check if the sum of recruits, juveniles, and adults exceeds the carrying capacity:
+    current_size[i] <- surviving_adults[i]
+    spots_left[i] <- max(0, current_capacity[i] - current_size[i])
+    
+    if (current_size[i] <= current_capacity[i]) {
+      adults[i] <- surviving_adults[i]
+    } else {
+      adults[i] <- spots_left[i]
+    }
+    time_step_5$adults[i] <- adults[i]
+    
+    # Update number of males in each anemone patch
+    males_in_group[time_step_5$adults == 0] <- 0  # Set number of males to 0 if there are no adults
+    males_in_group[i] <- time_step_5[i, "adults"] - time_step_5[i, "females"] 
+    
+  } 
+  
+  # Create new dataframe to add the new values for the number of eggs 
+  time_step_6 <- data.frame(time_step = rep(6, nrow(time_step_5)), 
+                            anemone_oral_disc_area = time_step_5$anemone_oral_disc_area,
+                            carrying_capacity = time_step_5$carrying_capacity,
+                            eggs = rep(0, nrow(time_step_5)),
+                            larvae = rep(0, nrow(time_step_5)),
+                            recruits = rep(0, nrow(time_step_5)),
+                            juveniles = rep(0, nrow(time_step_5)),
+                            adults = time_step_5$adults,
+                            males = males_in_group,
+                            females = time_step_5$females)
+  
+  # Bind the new subset to the existing data frame
+  new_pop_adults <- rbind(new_pop_juveniles, time_step_6)
+  
+  # Return new dataframe 
+  return(new_pop_adults)
+}
+
+```
+
+Each of the above functions were then compiled into a single function which simulates the anemonefish life cycle. The outputted dataframe combined each of the individual dataframes together.
+
+```{r, eval = FALSE}
+# Master Function: Loops through each life stage function to determine the final population size ------------------
+anemonefish_population_simulation <- function(time_steps, anemfish_params, anem_params) {
+  # Generate initial population
+  pop <- anemonefish_initial_population(anemfish_params, anem_params)
+  
+  # Loop through each time step
+  for (t in 1:time_steps) {
+    # Update egg production
+    pop <- anemonefish_lifestage_egg(pop, anemfish_params, anem_params)
+    
+    # Update larval life stage
+    pop <- anemonefish_lifestage_larval(pop, anemfish_params, anem_params)
+    
+    # Update recruit life stage
+    pop <- anemonefish_lifestage_recruit(pop, anemfish_params, anem_params)
+    
+    # Update juvenile life stage 
+    pop <- anemonefish_lifestage_juvenile(pop, anemfish_params, anem_params)
+    
+    # Update adult life stage (includes egg production)
+    pop <- anemonefish_lifestage_adult(pop, anemfish_params, anem_params)
+  }
+  return(pop)
+}
+
+# Run the master function:
+pop <- anemonefish_population_simulation(1, anemfish_params, anem_params)
+```
+
+To simulate the occurrence of a bleaching event, a function was developed to calculate the population size of each anemonefish colony following a bleaching event using the dataframe outputted from the life stage functions. The parameters for the probability of a bleaching event occuring and the mortality threshold for anemones were passed to the function. The severity of bleaching was calculated for each anemone using the probability of a bleaching event occurring as the mean and a standard deviation of 0.1. Thus, higher probabilities of a bleaching event occurring was used to assume significant effects of bleaching. 
+
+Saenz-Agudelo et al. 2011 found that anemones reduced in both abundance and size following bleaching. Thus, in response, the oral disc area for each anemone was reduced based on the severity of bleaching and anemone mortality threshold. If the occurrence probability was less than the severity value, the oral disc area was reduced depending on the severity. For all else, the oral disc area was reduced to 0 signifying mortality. Corresponding to reductions in anemone oral disc area, the carrying capacity, probability of mating, number of adults and consequently, number of males and females were also reduced. The probability of mating was reduced since research has demonstrated that anemonefish residing in bleached anemones experience reduced fecundity (Saenz-Agudelo et al. 2011). The results were then outputted as a dataframe. 
+
+```{r, eval = FALSE}
+# Function to simulate bleaching event  -----------------------------------
+
+# Develop second function to simulate a widespread bleaching event which either results in anemone mortality or reduction in size and health which reduces the carrying capacity of anemonefish. As a result, anemonefish either die or make use of other anemone host species (i.e, relocate). 
+
+# Potentially change the bleaching status to fixed 
+
+# Make a list to combine all the parameters for bleaching events
+bleaching_event_params <- list(prob_of_bleaching_event = 0.5,
+                               anemone_mortality_threshold = 0.7)
+
+# Function 7: Model the effects of bleaching events on anemonefish population size ---------
+simulate_bleaching_event <- function(pop, bleaching_event_params, anem_params) {
+  
+  # Create new vectors for each of the columns 
+  anemone_oral_disc_area <- pop$anemone_oral_disc_area[pop$time_step == 6]
+  carrying_capacity <- numeric(anem_params$anemone_pop_size)
+  adults <- pop$adults[pop$time_step == 6]
+  males <- pop$males[pop$time_step == 6]
+  females <- pop$females[pop$time_step == 6]
+  
+    # Determine severity of bleaching for each anemone using the probability of a bleaching event occurring
+    bleaching_severity_anemone = rnorm(anem_params$anemone_pop_size, mean = bleaching_event_params$prob_of_bleaching_event, sd = 0.1)
+  
+  # Reduce size based on severity of bleaching 
+  for (i in 1:anem_params$anemone_pop_size) {
+    # Determine the reduction in size if the extent of bleaching is less than the mortality threshold:
+    if (bleaching_severity_anemone[i] < bleaching_event_params$anemone_mortality_threshold) {
+      anemone_oral_disc_area[i] <- (anemone_oral_disc_area[i] * (1 - bleaching_severity_anemone[i]))
+    }
+    # If the extent of bleaching is greater than the mortality threshold, the anemone dies:
+    else {
+      anemone_oral_disc_area[i] <- 0
+    }
+  
+    # Calculate new carrying capacity for each anemone based on size: 
+    if (anemone_oral_disc_area[i] <= 500) {
+      carrying_capacity[i] <- sample(0:5, 1)
+    } else if (anemone_oral_disc_area[i] <= 2000) {
+      carrying_capacity[i] <- sample(5:20, 1)
+    } else {
+      carrying_capacity[i] <- sample(20:25, 1)
+    }
+    
+    # Determine how many fish remain on the anemone after bleaching:
+    # Determine the loss of fish inhabitants if the extent of bleaching is less than the mortality threshold:
+    if (bleaching_severity_anemone[i] <= bleaching_event_params$anemone_mortality_threshold) {
+      adults[i] <- round(adults[i] * (1 - bleaching_severity_anemone[i]))
+      # Decrease fecundity based on severity 
+      anemfish_params$prob_of_mating <- (anemfish_params$prob_of_mating / 2)
+    } else { # If the extent of bleaching is greater than the mortality threshold, all fish die/ relocate:
+      adults[i] <- 0
+    }
+    
+    # Update the number of males and females in each anemone:
+    if (adults[i] > 0) {
+      # Assign new fish to females first, then males if necessary:
+      if (pop$females[i] >= adults[i]) {
+        females[i] <- adults[i] 
+        males[i] <- adults[i] - females[i]
+      } else {
+        females[i] <- pop$females[i]
+        males[i] <- adults[i] - females[i]
+      }
+    } else {
+      # If there are no new fish, set males and females to zero:
+      males[i] <- 0
+      females[i] <- 0
+    }
+  }
+  
+  # Create new dataframe with updated life stage counts
+  new_pop <- data.frame(time_step = rep(1, anemone_pop_size),
+                        anemone_oral_disc_area = anemone_oral_disc_area,
+                        carrying_capacity = carrying_capacity,
+                        eggs = rep(0, anemone_pop_size),
+                        larvae = rep(0, anemone_pop_size),
+                        recruits = rep(0, anemone_pop_size),
+                        juveniles = rep(0, anemone_pop_size),
+                        adults = adults,
+                        females = females,
+                        males = males)
+  # Return the new dataframe
+  return(new_pop)
+}
+
+# Run the simulate bleaching event function
+new_pop <- simulate_bleaching_event(pop, bleaching_event_params, anem_params)
+```
+
+To add the effects of bleaching to the master function simulating each life stage, another master function was generated where all of the above functions were compiled into a single function. The outputted dataframe binded each of the individual dataframes together to demonstrate the effects that bleaching has on anemonefish populations.
+
+```{r, eval = FALSE}
+# Master function - Post-Bleaching --------------------
+# Simulate a generation after a bleaching event to determine the effects of reduced fecundity and decreased habitat quality:
+
+simulate_after_bleaching <- function(new_pop, anemfish_params, anem_params) {
+  # Specify the initial population 
+  init_df <- new_pop
+  
+  # Loop through each time step
+  for (t in 1:time_in_years) {
+    # Simulate new generations following bleaching event: 
+    # Update egg production
+    updated_pop <- anemonefish_lifestage_egg(init_df, anemfish_params, anem_params)
+    
+    # Update larval life stage
+    updated_pop <- anemonefish_lifestage_larval(updated_pop, anemfish_params, anem_params)
+
+    # Update recruit life stage
+    updated_pop <- anemonefish_lifestage_recruit(updated_pop, anemfish_params, anem_params)
+  
+    # Update juvenile life stage 
+    updated_pop <- anemonefish_lifestage_juvenile(updated_pop, anemfish_params, anem_params)
+    
+    # Update adult life stage (includes egg production)
+    updated_pop <- anemonefish_lifestage_adult(updated_pop, anemfish_params, anem_params)
+  } 
+  return(updated_pop)
+}
+
+# Run the simulation for after bleaching events function
+updated_pop <- simulate_after_bleaching(new_pop, anemfish_params, anem_params)
+
+
+# Determine the overall population size 
+population_size <- data.frame(sum(updated_pop$larvae), sum(updated_pop$recruits), sum(updated_pop$recruits), sum(updated_pop$juveniles), sum(updated_pop$adults))
+```
+
+To evaluate the effects of bleaching on anemonefish populations, I performed a parameter screen to determine which value for the probability of bleaching causes for the lowest anemonefish population size. For this parameter, I generated 100 values occurring between 0 and 1. These were then passed to the master function to simulate anemonefish populations for each value. The outputs were then collated and compared using a graph and summary statistics.
+
+```{r, eval = FALSE}
+# Parameter screening ---------------------------------------------
+
+# Define the number of simulations
+n <- 100
+
+# Create an empty list to store the population data frames
+total_populations <- list()
+
+# Loop through the range of n simulations
+for (i in 1:n) {
+  # Access the current value of prob_of_bleaching_event
+  bleaching_event_prob <- runif(1)
+  
+  # Run through the function with different parameter values 
+  lhs <- simulate_bleaching_event(pop, 
+                                  bleaching_event_params = list(
+                                    prob_of_bleaching_event = bleaching_event_prob,
+                                    anemone_mortality_threshold = 0.8),
+                                  anem_params = list(
+                                    anemone_pop_size = 16))
+  # Calculate sum for the population for each simulation
+  population <- data.frame(param = bleaching_event_prob, 
+                           sum(lhs$anemone_oral_disc_area), 
+                           sum(lhs$eggs), 
+                           sum(lhs$larvae), 
+                           sum(lhs$recruits), 
+                           sum(lhs$juveniles), 
+                           sum(lhs$adults))
+  
+  names(population) <- c("param", "ODA", "eggs", "larvae", "recruits", "juveniles", "adults")
+  
+  # Store current population dataframe in a list
+  total_populations[[i]] <- population
+}
+
+# Print the last population dataframe in the list
+print(total_populations)
+
+# Convert list to a dataframe
+screen_results <- do.call(rbind, total_populations)
+
+# Plot results as a graph
+ggplot(screen_results, aes(x = param)) +
+  geom_point(aes(y = adults), color = "black") +
+  xlab("Probability of thermal bleaching for each anemone") +
+  ylab("Number of adult inhabitants") +
+  theme_bw()
+```
+
+The results for the simulations were plotted using a visual animation and a line plot. 
+
+```{r, eval = FALSE}
+# Animation and Graphs ------------------------------------------------
+
+# Change the time steps for the bleaching data frame to continue on from 6 
+updated_pop <- updated_pop |> 
+  mutate(time_step = time_step + 6)
+
+# Bind the pre- and post-bleaching dataframes
+df <- rbind(pop, updated_pop)
+
+# Add a column for anemone id 
+df$anemone_id <- rep(NA, nrow(df)) # add anemone_id column
+
+for (t in unique(df$time_step)) {
+  # Subset data for current time step
+  df_subset <- df[df$time_step == t,]
+  
+  # Assign anemone IDs for current time step
+  df_subset$anemone_id <- 1:nrow(df_subset)
+  
+  # Replace anemone IDs in original data frame
+  df[df$time_step == t, "anemone_id"] <- df_subset$anemone_id
+}
+
+# Calculate average population size at each time step
+avg_pop <- round(aggregate(cbind(eggs, larvae, recruits, juveniles, adults) ~ time_step, data = df, mean))
+
+
+# Remove the columns that are no longer needed
+df <- df[, c("time_step", "anemone_oral_disc_area", "eggs", "larvae", "recruits", "juveniles", "adults")]
+
+
+# Calculate population size as a sum of each row
+avg_pop$population_size <- rowSums(avg_pop[,2:6])
+
+# Graph 1: 
+# Plot population size over time using ggplot
+ggplot(avg_pop, aes(x = time_step, y = population_size)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 1:length(avg_pop$time_step)) +
+  geom_vline(xintercept = 6.5, linetype = "dashed", color = "red") +
+  xlab("Time step") +
+  ylab("Anemonefish population size") +
+  ggtitle("Population size before and after a bleaching event") + 
+  theme_bw() +
+  geom_label(aes(label = population_size), vjust = -0.2)
+
+
+# Animation 1:
+# Produce an animation for the change in population size and anemone size 
+# Assign the colours for each lifestage 
+egg_colour <- "yellow"
+larvae_colour <- "orange"
+recruit_colour <- "red"
+juvenile_colour <- "lightblue"
+adult_colour <- "green"
+
+# Loop through time steps
+for (t in unique(df$time_step)) {
+  set.seed(1) # Set a random seed
+  
+  # Subset data for current time step
+  df_subset <- df[df$time_step == t, ]
+  jitter_x <- runif(nrow(df_subset), min = 0, max = 600)
+  jitter_y <- runif(nrow(df_subset), min = 0, max = 600)
+  
+  
+  plot(0, xlim=c(0, 700), ylim=c(0, 700), xlab="X", ylab="Y", main = paste("Time Step", t), type="n")
+  
+  # Set colour for circles based on oral disc area
+  circle_colours <- ifelse(df_subset$anemone_oral_disc_area > 10, "purple", "white")
+  
+  # Add smaller dots for each life stage
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$eggs, 
+          inches = 0.2, add = TRUE, 
+          bg = egg_colour, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$larvae, 
+          inches = 0.2, add = TRUE, 
+          bg = larvae_colour, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$recruits, 
+          inches = 0.2, add = TRUE, 
+          bg = recruit_colour, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$juveniles, 
+          inches = 0.2, add = TRUE, 
+          bg = juvenile_colour, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  
+  # Only plot adults for time steps 1, 6, 7 and 12 
+  if (t == 1 | t == 6 | t == 7 | t == 12) {
+    symbols(jitter_x, jitter_y, 
+            circles = df_subset$adults, 
+            inches = 0.2, add = TRUE, 
+            bg = adult_colour, 
+            fg = "black",
+            xlim = c(0, 700), ylim = c(0, 700))
+  }
+  
+  # Plot anemones with circles and rings for each life stage
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$anemone_oral_disc_area, 
+          inches = 0.1, add = TRUE, 
+          bg = circle_colours, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  
+  if (t == 7 | t == 8 | t == 9 | t == 10 | t == 11 | t == 12) {
+    box(lwd = 3, col = "red")
+  }
+  legend("right",
+         legend=c("Anemone", "Eggs", "Larvae", "Recruits", "Juveniles", "Adults"), 
+         pch=21, cex = 0.7, pt.bg=c("purple", egg_colour, larvae_colour, recruit_colour, juvenile_colour, adult_colour), bty="n")
+  
+  Sys.sleep(1.0)
+}
+```
+
+## 2.3 Assumptions 
+
+Since anemonefish recruitment networks are largely complex, there were several factors which were not incorporated into the model. Within the model, it is assumed that the anemone population is fixed and thus, does not consider anemone movement, reproduction, growth and mortality. When dispersing the recruits between the anemones in the population, it is assumed that they do not venture to new anemones outside of the population when locating suitable settlement sites. Anemonefish also exhibit species specific host preferences where they only live in select anemone host species. For the purpose of this model, it was assumed that the anemones were all the same species and were used by the anemonefish species. Additionally, the loss of individuals at each life stage is interpreted as those which did not survive and does not include the possibility of relocation. The model also excludes the impacts of other variables such as environmental conditions. Although anemonefish survival is largely affected by variables such as salinity, pH and currents, these were excluded for model simplicity. Furthermore, it was assumed that all of the anemones in the population bleached to some extent. This, however, may not be accurate depending on the positioning of the anemone. 
+
+
+# 3.0 Description of Results and Parameter Screening
+
+## 3.1 Results
+
+A stochastic individual-based model was used to simulate anemonefish population size following a bleaching event. The model consisted of two generations: the initial population and the population after the bleaching event. Each population was modelled over six time steps, representing distinct life stages: (1) initial adult population, (2) egg production, (3) surviving larvae, (4) surviving recruits, (5) surviving juveniles, and (6) surviving adults. The simulation results are illustrated in the animation below which shows the anemone host population and the proportion of individuals at each time step (Figure 2.0). The first six time steps correspond to the initial generation before the bleaching event, while the latter six time steps represent the second generation following the bleaching event (as indicated by the red box around the grid). At each time step, the represented life stage changes, and at time step 7, the size of the anemone oral disc area changes. Importantly, the circles are not proportional across life stages since the number of eggs was vastly different to the number of later life stages. 
+
+The initial six time steps depict an increase in individuals across every life stage, leading to an increase in the number of adults. In contrast, the latter six time steps display a decrease in the size of each anemone host following the bleaching event. This decrease caused a subsequent decrease in the number of initial resident adults, ultimately leading to no surviving recruits or juveniles. This exemplifies how bleaching events negatively impact the persistence of anemonefish populations.
+
+<figure>
+  <center>
+    <video width="500" height="400" controls>
+      <source src="animation.mp4" type="video/mp4">
+    </video>
+  </center>
+  <figcaption>*Figure 2.0: Animation displaying the changes in anemonefish population size over time. Each anemone is signified as a purple circle and the life stages are signified by coloured rings around each anemone. Each time step displays a single life stage where the size of the ring indicates the number of individuals for each anemone. The circles are not proportional across life stages. The red box around the grid at time step 7 signifies the occurrence of a bleaching event.*</figcaption>
+</figure>
+
+\
+
+The population size of anemonefish across different life stages is displayed in Figure 3.0. The time steps follow the same structure as those in the animation, with the points representing the total population size at each time point. The red line marks the simulated bleaching event. The figure shows that the anemonefish adult population increased before but decreased after the bleaching event. There were no surviving recruits or juveniles as only the existing adults remained at time steps 10 and 11. This graph further emphasizes the negative impact of bleaching on the population size of anemonefish.
+
+<figure>
+  <center>
+    <img src="graph_model_output.png" width="500" height="400">
+  </center>
+  <figcaption>*Figure 3.0: Line graph displaying the changes in anemonefish population size over time. Each time step represents a different life stage where the first six time steps are: initial adults, eggs produced, surviving larvae, surviving recruits, surviving juveniles and surviving adults. These time steps are then repeated for steps 7 to 12. The red dotted line signifies the occurence of a bleaching event. The population size is displayed at each time step.* </figcaption>
+</figure>
+
+
+## 3.2 Parameter Screen
+
+I conducted a parameter screen to determine the value for the probability of bleaching which resulted in the lowest anemonefish population size. As seen in Figure 4.0, I randomly chose 100 values ranging between 0 and 1 which were inputted into the bleaching master function. The results demonstrate that population size decreases linearly as the probability of bleaching increases. This is due to the probability of a bleaching event occurring determines the severity of bleaching for each anemone host. Within the sampled values, a probability of 0.98 for a bleaching event occurring resulted in the lowest population size of zero individuals across all life stages and zero surviving anemones (refer to Table 1.0). It is important to note that 0.98 was the highest value in the sampled data, thus, a value of 1.0 would be most detrimental to anemonefish populations. 
+
+*Table 1.0: Parameter Screen: Value for the probability of a bleaching event occurring parameter which resulted in the lowest anemonefish population size*
+
+| Probability of Bleaching Event | ODA  | Eggs | Larvae | Recruits | Juveniles | Adults |
+|--------------------------------|------|------|--------|----------|-----------|--------|
+| 0.981543157                    | 0.00 | 0    | 0      | 0        | 0         | 0      | 
+
+<figure>
+  <center>
+    <img src="graph_parameter_screen.png" width="500" height="400">
+  </center>
+  <figcaption>*Figure 4.0: Dot plot displaying the number of adults at time step 12 relative to different values for the probability of a bleaching event occurring. Each dot represents a single simulation. *</figcaption>
+</figure>
+
+
+# 4.0 Conclusion 
+
+A stochastic individual-based model simulated the effects of bleaching events on the population size of anemonefish. The model determined that bleaching events negatively impact the population size of anemonefish, however, the extent of population degradation depends on the probability of a bleaching event occurring and consequently, the bleaching severity. Higher probabilities of a bleaching event resulted in the greatest detriments to anemonefish population size. There were several limitations and assumptions used in this model; however, with improvements, this model could potentially be a useful tool for predicting the survival of different anemonefish species with varying anemone host specificity to guide effective conservation measures. 
+
+# 5.0 References 
+
+Beldade, R., Blandin, A., O’Donnell, R. & Mills, S. C. 2017. Cascading effects of thermally- induced anemone bleaching on associated anemonefish hormonal stress response and reproduction. *Nature Communications*, 8, 1-9. 
+
+Branconi, R., Barbasch, T. A., Francis, R. K., Srinivasan, M., Jones, G. P. & Buston, P. M. 2020. Ecological and social constraints combine to promote evolution of non-breeding strategies in clownfish. *Communications Biology*, 3, 1-7. 
+
+Ceballos, G., Ehrlich, P. R., Barnosky, A. D., García, A., Pringle, R. M. & Palmer, T. M. 2015. Accelerated modern human–induced species losses: Entering the sixth mass extinction. *Science Advances*, 1, e1400253. 
+
+Cleveland, A., Verde, E. A. & Lee, R. W. 2011. Nutritional exchange in a tropical tripartite symbiosis: direct evidence for the transfer of nutrients from anemonefish to host anemone and zooxanthellae. *Marine Biology*, 158, 589-602. 
+
+Fardila, D. G., Kelly, L. T., Moore, J. L. & McCarthy, M. A. 2017. A systematic review reveals changes in where and how we have studied habitat loss and fragmentation over 20 years. *Biological Conservation*, 212, 130-138.
+
+Fautin, D. G. & Allen, G. R.1992. Field guide to anemonefishes and their host sea anemones. Perth, WA: Western Australian Museum.
+
+Great Barrier Reef Marine Park Authority, Australian Institute of Marine Science & CSIRO. 2022. *Reef Snapshot: Summer 2021-22.* Townsville: Great Barrier Reef Marine Park Authority. 6 p. 
+
+Hattori, A. 2005. High mobility of the protandrous anemonefish *Amphiprion frenatus*: non-random pair formation in limited shelter space. *Ichthyological Research*, 52, 57-63. 
+
+Hobbs, J. P. A., Frisch, A. J., Ford, B. M., Thums, M., Saenz-Agudelo, P., Furby, K. A. & Berumen, M. L. 2013. Taxonomic, spatial and temporal patterns of bleaching in anemones inhabited by anemonefishes. *PLoS One*, 8, 1-11. 
+
+Hoegh-Guldberg, O. 1999. Climate change, coral bleaching and the future of the world's coral reefs. *Marine and Freshwater Research*, 50, 839-866. 
+
+Hoegh-Guldberg, O., Mumby, P. J., Hooten, A. J., Steneck, R. S., Greenfield, P., Gomez, E. & Hatziolos, M. 2007. Coral reefs under rapid climate change and ocean acidification. *Science*, 318, 1737-1742. 
+
+Hoepner, C. M. & Fobert, E. K. 2021. Just keep swimming: long‐distance mobility of tomato clownfish following anemone bleaching. *Ecology*, 103, 1-4. 
+
+Hoepner, C. M., Abbott, C. A. & Burke da Silva, K. 2019. The ecological importance of toxicity: Sea anemones maintain toxic defence when bleached. *Toxins*, 11, 1-12. 
+
+Holbrook, S. J. & Schmitt, R. J. 2005. Growth, reproduction and survival of a tropical sea anemone (Actiniaria): benefits of hosting anemonefish. *Coral Reefs*, 24, 67-73. 
+
+Hughes, T. P., Baird, A. H., Bellwood, D. R., Card, M., Connolly, S. R., Folke, C. & Roughgarden, J. 2003. Climate change, human impacts, and the resilience of coral reefs. *Science*, 301, 929- 933. 
+
+Ismail, M. S., Khoo, M. L., Dzulfikkar, B. M. M. & Christianus, A. 2023. Breeding and Hybridization of Clownfish *Amphiprion ephippium* × *Amphiprion melanopus* in Captivity. *Pertanika Journal of Tropical Agricultural Science*, 46.
+
+Kobayashi, M. & Hattori, A. 2006. Spacing pattern and body size composition of the protandrous anemonefish *Amphiprion frenatus* inhabiting colonial host anemones. *Ichthyological Research*, 53, 1-6.
+
+Mitchell, J. S. & Dill, L. M. 2005. Why is group size correlated with the size of the host sea anemone in the false clown anemonefish?. *Canadian Journal of Zoology*, 83, 372-376. 
+
+Munday, P. L. 2004. Habitat loss, resource specialization, and extinction on coral reefs. *Global Change Biology*, 10, 1642-1647.
+
+Pratchett, M. S., Wilson, S. K. & Baird, A. H. 2006. Declines in the abundance of Chaetodon butterflyfishes following extensive coral depletion. *Journal of Fish Biology*, 69, 1269-1280.
+
+Roux, N., Salis, P., Lambert, A., Logeux, V., Soulat, O., Romans, P. & Laudet, V. 2019. Staging and normal table of postembryonic development of the clownfish (*Amphiprion ocellaris*). *Developmental Dynamics*, 248, 545-568.
+
+Roux, N., Salis, P., Lee, S. H., Besseau, L. & Laudet, V. 2020. Anemonefish, a model for eco-evo-devo. *EvoDevo*, 11, 1-11.
+
+Saenz-Agudelo, P., Jones, G. P., Thorrold, S. R. & Planes, S. 2011. Detrimental effects of host anemone bleaching on anemonefish populations. *Coral Reefs*, 30, 497-506. 
+
+# 6.0 Complete Model Code 
+
+```{r, eval = FALSE}
+# Stochastic Event-Based Model: Modelling Population Size of A. latezonatus In Response to Anemone Bleaching 
+
+# import required libraries 
+library(ggplot2)
+library(tidyverse)
+library(DoE.wrapper)
+
+
+# Develop a function that models anemonefish population dynamics: 
+
+# There are five life stages: egg, larval, recruit, juvenile and adult. The larval stage is characterised by an oceanic phase where survival is largely influenced by environmental conditions and predation. The other life stages are termed reef phases where survival is largely influenced by host quality, predation and competition.  
+
+# In more recent times, bleaching events have become a large threat for anemone hosts. Thus, I want to develop a second function which models the effects of bleached anemone hosts on anemonefish populations. When anemones bleach, they reduce in size and health which can negatively impact anemonefishes by increasing their stress responses and reducing their recruitment and fecundity. In response to bleaching, anemonefish have been found to utilise other species of anemone hosts when their preferred species becomes limited. 
+
+
+
+# Parameters  -------------------------------------------------------------
+
+# Define the parameters and combine those for anemonefish and anemones as a list to be passed to the functions:
+
+# Determine the time in years for the simulation to run over
+time_in_years <- 1
+
+# Define anemone parameters
+anemone_pop_size <- 16 # the number of anemone hosts 
+anemone_oral_disc_area <- rnorm(runif(anemone_pop_size, min = 100, max = 2500), # generates n random numbers between 100 and 2500
+                                mean = 1000, 
+                                sd = 500) # determines the size of the anemone 
+
+# Make a list to combine all the parameters for anemone hosts:
+anem_params <- list(anemone_pop_size = anemone_pop_size, 
+                    anemone_oral_disc_area = anemone_oral_disc_area)
+
+# Make a list to combine all the parameters for anemonefish
+anemfish_params <- list(prob_of_suitable_partner = rnorm(sample(0:1, anemone_pop_size, replace = TRUE), 0.8, 0.1), # mean of 0.8 and sd of 0.1
+                        prob_of_mating = rnorm(sample(0:1, anemone_pop_size, replace = TRUE), 0.8, 0.1),  
+                        predation_rate_oceanic_phase = 0.7, 
+                        predation_rate_reef_phase = 0.05, 
+                        competition_oceanic_phase = 0.7, 
+                        competition_reef_phase = 0.05)
+
+
+# Make a list to combine all the parameters for bleaching events
+bleaching_event_params <- list(prob_of_bleaching_event = 0.5,
+                               anemone_mortality_threshold = 0.7) 
+
+
+
+
+# Functions to model each lifestage ---------------------------------------
+
+# Function 1: Model the initial population size of anemonefish on anemone hosts --------
+anemonefish_initial_population <- function(anemfish_params, anem_params) {
+  # Determine size of current anemonefish population:
+  # Create an empty data frame
+  df <- data.frame(time_step = integer(), 
+                         anemone_oral_disc_area = numeric(),
+                         carrying_capacity = integer(),
+                         eggs = integer(),
+                         larvae = integer(),
+                         recruits = integer(),
+                         juveniles = integer(),
+                         adults = integer(),
+                         males = integer(),
+                         females = integer())
+  
+  # Calculate the sum of anemonefish population size and assign anemonefish group size for each anemone host:
+  for (i in 1:anem_params$anemone_pop_size) {
+    # Generate randomly drawn samples for the number of anemonefish for each life stage
+    anemone_oral_disc_area <- sort(rnorm(runif(anem_params$anemone_pop_size, min = 100, max = 2500), mean = 1000, sd = 250))
+    
+    # Calculate the carrying capacity for each anemone based on size: 
+    if(anemone_oral_disc_area[i] <= 500) {
+      carrying_capacity <- sample(0:10, anem_params$anemone_pop_size, replace = TRUE)
+    } else {
+      if (anemone_oral_disc_area[i] > 500 & anemone_oral_disc_area[i] <= 2000) {
+        carrying_capacity <- sample(10:30, anem_params$anemone_pop_size, replace = TRUE)
+      } else {
+        carrying_capacity <- sample(30:35, anem_params$anemone_pop_size, replace = TRUE)
+      }
+    }
+    
+    # Generate values for the first time step where the adults and consequently, males and females are randomly assigned initially 
+    row_data <- data.frame(time_step = rep(1, anem_params$anemone_pop_size),
+                           anemone_oral_disc_area = anemone_oral_disc_area,
+                           carrying_capacity = carrying_capacity,
+                           eggs = rep(0, anem_params$anemone_pop_size),
+                           larvae = rep(0, anem_params$anemone_pop_size),
+                           recruits = rep(0, anem_params$anemone_pop_size),
+                           juveniles = rep(0, anem_params$anemone_pop_size),
+                           adults = sort(sample(1:4, anem_params$anemone_pop_size, replace = TRUE, prob = c(0.2, 0.6, 0.6, 0.4))),
+                           females = sort(sample(0:2, anem_params$anemone_pop_size, replace = TRUE, prob = c(0.1, 0.8, 0.1))))
+    
+    # Calculate the number of males for the current index
+    row_data$males <- (row_data$juveniles + row_data$adults) - row_data$females
+    
+    # Add the new data to the initalised data frame
+    init_pop <- rbind(df, row_data)
+  }
+  
+  # Return the completed data frame
+  return(init_pop)
+}
+
+
+# Function 2: Model egg production life stage --------
+anemonefish_lifestage_egg <- function(init_pop, anemfish_params, anem_params) {
+  
+  # Assign initial population values to another object to avoid altering the initial population
+  eggs_pop <- init_pop
+  
+  # Determine number of eggs produced by each female:
+  eggs <- rep(0, nrow(eggs_pop)) # initalise egg column with 0s
+  
+  # Calculate number of eggs where males and females are greater than 1:
+  for (i in 1:nrow(eggs_pop)) {
+    if (eggs_pop$females[i] >= 1 & eggs_pop$males[i] >= 1) {
+      eggs[i] <- round(eggs_pop$females[i] * anemfish_params$prob_of_suitable_partner[i] * anemfish_params$prob_of_mating[i] * 1000)
+    } else {
+      eggs[i] <- 0
+    }
+  }
+  
+  # Create new dataframe to add the new values for the number of eggs 
+  time_step_2 <- data.frame(time_step = rep(2, anemone_pop_size), 
+                            anemone_oral_disc_area = eggs_pop$anemone_oral_disc_area,
+                            carrying_capacity = eggs_pop$carrying_capacity,
+                            eggs = eggs,
+                            larvae = eggs_pop$larvae,
+                            recruits = eggs_pop$recruits,
+                            juveniles = eggs_pop$juveniles,
+                            adults = eggs_pop$adults,
+                            males = eggs_pop$males,
+                            females = eggs_pop$females)
+  
+  # Bind the new subset to the existing data frame
+  new_pop_egg <- rbind(eggs_pop, time_step_2)
+  
+  # Return the new data frame 
+  return(new_pop_egg)
+}
+
+
+
+# Function 3: Model the larval life stage ---------------------------------
+anemonefish_lifestage_larval <- function(new_pop_egg, anemfish_params, anem_params) {
+  # Determine the number of surviving larvae when considering the impacts of predation and environmental factors:
+  # Assign eggs to new variable to determine the amount which survived to become larvae:
+  larvae <- new_pop_egg$eggs[new_pop_egg$time_step == 2]
+  for (i in 1:length(larvae)) {
+    if (larvae[i] > 0) {
+      # Determine the number of anemonefish eggs that successfully hatched to become larvae:
+      prob_of_survival_oceanic <- exp(-anemfish_params$predation_rate_oceanic_phase - anemfish_params$competition_oceanic_phase)
+      surviving_larvae <- round(larvae[i] * prob_of_survival_oceanic)
+      larvae[i] <- surviving_larvae
+    } else {
+      larvae[i] <- 0
+    }
+  }
+  
+  # Create new dataframe to add the new values for the number of eggs
+  time_step_3 <- data.frame(time_step = rep(3, length(larvae)), 
+                            anemone_oral_disc_area = new_pop_egg$anemone_oral_disc_area[new_pop_egg$time_step == 2],
+                            carrying_capacity = new_pop_egg$carrying_capacity[new_pop_egg$time_step == 2],
+                            eggs = rep(0, length(larvae)),
+                            larvae = larvae,
+                            recruits = new_pop_egg$recruits[new_pop_egg$time_step == 2],
+                            juveniles = new_pop_egg$juveniles[new_pop_egg$time_step == 2],
+                            adults = new_pop_egg$adults[new_pop_egg$time_step == 2],
+                            males = new_pop_egg$males[new_pop_egg$time_step == 2],
+                            females = new_pop_egg$females[new_pop_egg$time_step == 2])
+  
+  # Bind the new subset to the existing data frame
+  new_pop_larvae <- rbind(new_pop_egg, time_step_3)
+  
+  # Return the new dataframe 
+  return(new_pop_larvae)
+}
+
+
+
+# Function 4: Model the recruit life stage ---------------------------
+anemonefish_lifestage_recruit <- function(new_pop_larvae, anemfish_params, anem_params) {
+
+  # Assign larvae to new object name 
+  time_step_3 <- new_pop_larvae[new_pop_larvae$time_step == 3, ]
+  # Specify current capacity for this time step
+  current_capacity <- time_step_3$carrying_capacity
+  # Intialise columns
+  current_size <- numeric(nrow(time_step_3))
+  spots_left <- numeric(nrow(time_step_3))
+  
+  # Determine the number of anemonefish larvae that successfully survived to become recruits:
+  for (i in 1:nrow(time_step_3)) {
+    recruits <- time_step_3[i, "larvae"]
+    prob_of_survival_reef <- exp(-anemfish_params$predation_rate_reef_phase - anemfish_params$competition_reef_phase)
+    surviving_recruits <- round(recruits * prob_of_survival_reef)
+    
+    # Allocate recruits to anemones based on oral disc area
+    recruit_dispersal_prob <- time_step_3$anemone_oral_disc_area / sum(time_step_3$anemone_oral_disc_area)
+    
+    # Randomly allocate the recruits based on the probabilities:
+    allocated_recruits <- rbinom(nrow(time_step_3), size = surviving_recruits, prob = recruit_dispersal_prob)
+    
+    # Check if the sum of allocated recruits, juveniles, and adults exceeds the carrying capacity:
+    current_size <- rowSums(cbind(allocated_recruits, time_step_3$juveniles, time_step_3$adults))
+    spots_left <- pmax(current_capacity - current_size, 0)
+    
+    if (sum(allocated_recruits[i] + time_step_3$juveniles[i] + time_step_3$adults[i]) <= current_capacity[i]) {
+      allocated_recruits[i] <- allocated_recruits[i]
+    } else {
+      allocated_recruits[i] <- spots_left[i]
+    }
+  }
+  
+  # Create new dataframe to add the new values for the number of eggs 
+  time_step_4 <- data.frame(time_step = rep(4, nrow(time_step_3)), 
+                            anemone_oral_disc_area = time_step_3$anemone_oral_disc_area,
+                            carrying_capacity = time_step_3$carrying_capacity,
+                            eggs = rep(0, nrow(time_step_3)),
+                            larvae = rep(0, nrow(time_step_3)),
+                            recruits = allocated_recruits,
+                            juveniles = time_step_3$juveniles,
+                            adults = time_step_3$adults,
+                            males = time_step_3$males,
+                            females = time_step_3$females)
+  
+  # Bind the new subset to the existing data frame
+  new_pop_recruits <- rbind(new_pop_larvae, time_step_4)
+  
+  # Return new dataframe 
+  return(new_pop_recruits)
+}
+
+
+
+# Function 5: Model the juvenile life stage  ----------------------
+anemonefish_lifestage_juvenile <- function(new_pop_recruits, anemfish_params, anem_params) {
+  
+  # Assign previous timestep to new object variable
+  time_step_4 <- new_pop_recruits[new_pop_recruits$time_step == 4, ]
+  
+  # Initiate empty columns
+  surviving_juveniles <- numeric(nrow(time_step_4))
+  current_size <- numeric(nrow(time_step_4))
+  spots_left <- numeric(nrow(time_step_4))
+  
+  # Assign recruits from time to new variable 
+  juveniles <- time_step_4$recruits # recruits from previous time step now become juveniles
+  
+  # Determine the number of anemonefish recruits that successfully survived to become juveniles:
+  prob_of_survival_reef <- exp(-anemfish_params$predation_rate_reef_phase - anemfish_params$competition_reef_phase)
+  
+  # Assign current capacity to the previous capacity 
+  current_capacity <- time_step_4$carrying_capacity
+  
+  for (i in 1:nrow(time_step_4)) {
+    
+    # Update the number of juveniles in the new data frame using the probability of survival 
+    surviving_juveniles[i] <- round(juveniles[i] * prob_of_survival_reef)
+
+    # Check if the sum of recruits, juveniles, and adults exceeds the carrying capacity:
+    current_size[i] <- surviving_juveniles[i] + time_step_4$adults[i]
+    spots_left[i] <- max(0, current_capacity[i] - current_size[i])
+    juveniles[i] <- ifelse(current_size[i] <= current_capacity[i], 
+                           surviving_juveniles[i], 
+                           spots_left[i])
+  }
+  
+  # Create new dataframe to add the new values for the number of eggs 
+  time_step_5 <- data.frame(time_step = rep(5, nrow(time_step_4)), 
+                            anemone_oral_disc_area = time_step_4$anemone_oral_disc_area,
+                            carrying_capacity = time_step_4$carrying_capacity,
+                            eggs = rep(0, nrow(time_step_4)),
+                            larvae = rep(0, nrow(time_step_4)),
+                            recruits = rep(0, nrow(time_step_4)),
+                            juveniles = juveniles,
+                            adults = time_step_4$adults,
+                            males = time_step_4$males,
+                            females = time_step_4$females)
+  
+  # Bind the new subset to the existing data frame
+  new_pop_juveniles <- rbind(new_pop_recruits, time_step_5)
+  
+  # Return the new dataframe 
+  return(new_pop_juveniles)
+}
+
+# Function 6: Model the adult life stage ----------------------
+anemonefish_lifestage_adult <- function(new_pop_juveniles, anemfish_params, anem_params) {
+  # Assign the previous time step to a new object variable 
+  time_step_5 <- new_pop_juveniles[new_pop_juveniles$time_step == 5, ]
+    
+  # Initialize empty columns
+  males_in_group <- numeric(nrow(time_step_5))
+  surviving_adults <- numeric(nrow(time_step_5))
+  current_size <- numeric(nrow(time_step_5))
+  spots_left <- numeric(nrow(time_step_5))
+  adults <- numeric(nrow(time_step_5))
+  
+  # Specify current capacity
+  current_capacity <- time_step_5$carrying_capacity
+  
+  # Assign juveniles to adults 
+  new_adults <- time_step_5$juveniles
+  
+  # Determine the number of anemonefish juveniles that successfully survived to become adults:
+  for (i in 1:nrow(time_step_5)) {
+    prob_of_survival_reef <- exp(-anemfish_params$predation_rate_reef_phase - anemfish_params$competition_reef_phase)
+    surviving_adults[i] <- round(new_adults[i] * prob_of_survival_reef) + time_step_5$adults[i]
+
+    # Check if the sum of recruits, juveniles, and adults exceeds the carrying capacity:
+    current_size[i] <- surviving_adults[i]
+    spots_left[i] <- max(0, current_capacity[i] - current_size[i])
+    
+    if (current_size[i] <= current_capacity[i]) {
+      adults[i] <- surviving_adults[i]
+    } else {
+      adults[i] <- spots_left[i]
+    }
+    time_step_5$adults[i] <- adults[i]
+    
+    # Update number of males in each anemone patch
+    males_in_group[time_step_5$adults == 0] <- 0  # Set number of males to 0 if there are no adults
+    males_in_group[i] <- time_step_5[i, "adults"] - time_step_5[i, "females"] 
+    
+  } 
+  
+  # Create new dataframe to add the new values for the number of eggs 
+  time_step_6 <- data.frame(time_step = rep(6, nrow(time_step_5)), 
+                            anemone_oral_disc_area = time_step_5$anemone_oral_disc_area,
+                            carrying_capacity = time_step_5$carrying_capacity,
+                            eggs = rep(0, nrow(time_step_5)),
+                            larvae = rep(0, nrow(time_step_5)),
+                            recruits = rep(0, nrow(time_step_5)),
+                            juveniles = rep(0, nrow(time_step_5)),
+                            adults = time_step_5$adults,
+                            males = males_in_group,
+                            females = time_step_5$females)
+  
+  # Bind the new subset to the existing data frame
+  new_pop_adults <- rbind(new_pop_juveniles, time_step_6)
+  
+  # Return new dataframe 
+  return(new_pop_adults)
+}
+
+
+
+# Master Function: Loops through each life stage function to determine the final population size ------------------
+anemonefish_population_simulation <- function(time_steps, anemfish_params, anem_params) {
+  # Generate initial population
+  pop <- anemonefish_initial_population(anemfish_params, anem_params)
+  
+  # Loop through each time step
+  for (t in 1:time_steps) {
+    # Update egg production
+    pop <- anemonefish_lifestage_egg(pop, anemfish_params, anem_params)
+    
+    # Update larval life stage
+    pop <- anemonefish_lifestage_larval(pop, anemfish_params, anem_params)
+    
+    # Update recruit life stage
+    pop <- anemonefish_lifestage_recruit(pop, anemfish_params, anem_params)
+    
+    # Update juvenile life stage 
+    pop <- anemonefish_lifestage_juvenile(pop, anemfish_params, anem_params)
+    
+    # Update adult life stage (includes egg production)
+    pop <- anemonefish_lifestage_adult(pop, anemfish_params, anem_params)
+  }
+  return(pop)
+}
+
+# Run the master function:
+pop <- anemonefish_population_simulation(1, anemfish_params, anem_params)
+
+
+
+# Function to simulate bleaching event  -----------------------------------
+
+# Develop second function to simulate a widespread bleaching event which either results in anemone mortality or reduction in size and health which reduces the carrying capacity of anemonefish. As a result, anemonefish either die or make use of other anemone host species (i.e, relocate). 
+
+# Potentially change the bleaching status to fixed 
+
+# Make a list to combine all the parameters for bleaching events
+bleaching_event_params <- list(prob_of_bleaching_event = 0.5,
+                               anemone_mortality_threshold = 0.7)
+
+# Function 7: Model the effects of bleaching events on anemonefish population size ---------
+simulate_bleaching_event <- function(pop, bleaching_event_params, anem_params) {
+  
+  # Create new vectors for each of the columns 
+  anemone_oral_disc_area <- pop$anemone_oral_disc_area[pop$time_step == 6]
+  carrying_capacity <- numeric(anem_params$anemone_pop_size)
+  adults <- pop$adults[pop$time_step == 6]
+  males <- pop$males[pop$time_step == 6]
+  females <- pop$females[pop$time_step == 6]
+  
+    # Determine severity of bleaching for each anemone using the probability of a bleaching event occurring
+    bleaching_severity_anemone = rnorm(anem_params$anemone_pop_size, mean = bleaching_event_params$prob_of_bleaching_event, sd = 0.1)
+  
+  # Reduce size based on severity of bleaching 
+  for (i in 1:anem_params$anemone_pop_size) {
+    # Determine the reduction in size if the extent of bleaching is less than the mortality threshold:
+    if (bleaching_severity_anemone[i] < bleaching_event_params$anemone_mortality_threshold) {
+      anemone_oral_disc_area[i] <- (anemone_oral_disc_area[i] * (1 - bleaching_severity_anemone[i]))
+    }
+    # If the extent of bleaching is greater than the mortality threshold, the anemone dies:
+    else {
+      anemone_oral_disc_area[i] <- 0
+    }
+  
+    # Calculate new carrying capacity for each anemone based on size: 
+    if (anemone_oral_disc_area[i] <= 500) {
+      carrying_capacity[i] <- sample(0:5, 1)
+    } else if (anemone_oral_disc_area[i] <= 2000) {
+      carrying_capacity[i] <- sample(5:20, 1)
+    } else {
+      carrying_capacity[i] <- sample(20:25, 1)
+    }
+    
+    # Determine how many fish remain on the anemone after bleaching:
+    # Determine the loss of fish inhabitants if the extent of bleaching is less than the mortality threshold:
+    if (bleaching_severity_anemone[i] <= bleaching_event_params$anemone_mortality_threshold) {
+      adults[i] <- round(adults[i] * (1 - bleaching_severity_anemone[i]))
+      # Decrease fecundity based on severity 
+      anemfish_params$prob_of_mating <- (anemfish_params$prob_of_mating / 2)
+    } else { # If the extent of bleaching is greater than the mortality threshold, all fish die/ relocate:
+      adults[i] <- 0
+    }
+    
+    # Update the number of males and females in each anemone:
+    if (adults[i] > 0) {
+      # Assign new fish to females first, then males if necessary:
+      if (pop$females[i] >= adults[i]) {
+        females[i] <- adults[i] 
+        males[i] <- adults[i] - females[i]
+      } else {
+        females[i] <- pop$females[i]
+        males[i] <- adults[i] - females[i]
+      }
+    } else {
+      # If there are no new fish, set males and females to zero:
+      males[i] <- 0
+      females[i] <- 0
+    }
+  }
+  
+  # Create new dataframe with updated life stage counts
+  new_pop <- data.frame(time_step = rep(1, anemone_pop_size),
+                        anemone_oral_disc_area = anemone_oral_disc_area,
+                        carrying_capacity = carrying_capacity,
+                        eggs = rep(0, anemone_pop_size),
+                        larvae = rep(0, anemone_pop_size),
+                        recruits = rep(0, anemone_pop_size),
+                        juveniles = rep(0, anemone_pop_size),
+                        adults = adults,
+                        females = females,
+                        males = males)
+  # Return the new dataframe
+  return(new_pop)
+}
+
+# Run the simulate bleaching event function
+new_pop <- simulate_bleaching_event(pop, bleaching_event_params, anem_params)
+
+
+
+# Master function - Post-Bleaching --------------------
+# Simulate a generation after a bleaching event to determine the effects of reduced fecundity and decreased habitat quality:
+
+simulate_after_bleaching <- function(new_pop, anemfish_params, anem_params) {
+  # Specify the initial population 
+  init_df <- new_pop
+  
+  # Loop through each time step
+  for (t in 1:time_in_years) {
+    # Simulate new generations following bleaching event: 
+    # Update egg production
+    updated_pop <- anemonefish_lifestage_egg(init_df, anemfish_params, anem_params)
+    
+    # Update larval life stage
+    updated_pop <- anemonefish_lifestage_larval(updated_pop, anemfish_params, anem_params)
+
+    # Update recruit life stage
+    updated_pop <- anemonefish_lifestage_recruit(updated_pop, anemfish_params, anem_params)
+  
+    # Update juvenile life stage 
+    updated_pop <- anemonefish_lifestage_juvenile(updated_pop, anemfish_params, anem_params)
+    
+    # Update adult life stage (includes egg production)
+    updated_pop <- anemonefish_lifestage_adult(updated_pop, anemfish_params, anem_params)
+  } 
+  return(updated_pop)
+}
+
+# Run the simulation for after bleaching events function
+updated_pop <- simulate_after_bleaching(new_pop, anemfish_params, anem_params)
+
+
+# Determine the overall population size 
+population_size <- data.frame(sum(updated_pop$larvae), sum(updated_pop$recruits), sum(updated_pop$recruits), sum(updated_pop$juveniles), sum(updated_pop$adults))
+
+
+# Animation and Graphs ------------------------------------------------
+
+# Change the time steps for the bleaching data frame to continue on from 6 
+updated_pop <- updated_pop |> 
+  mutate(time_step = time_step + 6)
+
+# Bind the pre- and post-bleaching dataframes
+df <- rbind(pop, updated_pop)
+
+# Add a column for anemone id 
+df$anemone_id <- rep(NA, nrow(df)) # add anemone_id column
+
+for (t in unique(df$time_step)) {
+  # Subset data for current time step
+  df_subset <- df[df$time_step == t,]
+  
+  # Assign anemone IDs for current time step
+  df_subset$anemone_id <- 1:nrow(df_subset)
+  
+  # Replace anemone IDs in original data frame
+  df[df$time_step == t, "anemone_id"] <- df_subset$anemone_id
+}
+
+# Calculate average population size at each time step
+avg_pop <- round(aggregate(cbind(eggs, larvae, recruits, juveniles, adults) ~ time_step, data = df, mean))
+
+
+# Remove the columns that are no longer needed
+df <- df[, c("time_step", "anemone_oral_disc_area", "eggs", "larvae", "recruits", "juveniles", "adults")]
+
+
+# Calculate population size as a sum of each row
+avg_pop$population_size <- rowSums(avg_pop[,2:6])
+
+# Graph 1: 
+# Plot population size over time using ggplot
+ggplot(avg_pop, aes(x = time_step, y = population_size)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 1:length(avg_pop$time_step)) +
+  geom_vline(xintercept = 6.5, linetype = "dashed", color = "red") +
+  xlab("Time step") +
+  ylab("Anemonefish population size") +
+  ggtitle("Population size before and after a bleaching event") + 
+  theme_bw() +
+  geom_label(aes(label = population_size), vjust = -0.2)
+
+
+# Animation 1:
+# Produce an animation for the change in population size and anemone size 
+# Assign the colours for each lifestage 
+egg_colour <- "yellow"
+larvae_colour <- "orange"
+recruit_colour <- "red"
+juvenile_colour <- "lightblue"
+adult_colour <- "green"
+
+# Loop through time steps
+for (t in unique(df$time_step)) {
+  set.seed(1) # Set a random seed
+  
+  # Subset data for current time step
+  df_subset <- df[df$time_step == t, ]
+  jitter_x <- runif(nrow(df_subset), min = 0, max = 600)
+  jitter_y <- runif(nrow(df_subset), min = 0, max = 600)
+  
+  
+  plot(0, xlim=c(0, 700), ylim=c(0, 700), xlab="X", ylab="Y", main = paste("Time Step", t), type="n")
+  
+  # Set colour for circles based on oral disc area
+  circle_colours <- ifelse(df_subset$anemone_oral_disc_area > 10, "purple", "white")
+  
+  # Add smaller dots for each life stage
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$eggs, 
+          inches = 0.2, add = TRUE, 
+          bg = egg_colour, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$larvae, 
+          inches = 0.2, add = TRUE, 
+          bg = larvae_colour, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$recruits, 
+          inches = 0.2, add = TRUE, 
+          bg = recruit_colour, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$juveniles, 
+          inches = 0.2, add = TRUE, 
+          bg = juvenile_colour, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  
+  # Only plot adults for time steps 1, 6, 7 and 12 
+  if (t == 1 | t == 6 | t == 7 | t == 12) {
+    symbols(jitter_x, jitter_y, 
+            circles = df_subset$adults, 
+            inches = 0.2, add = TRUE, 
+            bg = adult_colour, 
+            fg = "black",
+            xlim = c(0, 700), ylim = c(0, 700))
+  }
+  
+  # Plot anemones with circles and rings for each life stage
+  symbols(jitter_x, jitter_y, 
+          circles = df_subset$anemone_oral_disc_area, 
+          inches = 0.1, add = TRUE, 
+          bg = circle_colours, 
+          fg = "black",
+          xlim = c(0, 700), ylim = c(0, 700))
+  
+  if (t == 7 | t == 8 | t == 9 | t == 10 | t == 11 | t == 12) {
+    box(lwd = 3, col = "red")
+  }
+  legend("right",
+         legend=c("Anemone", "Eggs", "Larvae", "Recruits", "Juveniles", "Adults"), 
+         pch=21, cex = 0.7, pt.bg=c("purple", egg_colour, larvae_colour, recruit_colour, juvenile_colour, adult_colour), bty="n")
+  
+  Sys.sleep(1.0)
+}
+        
+
+# Parameter screening ---------------------------------------------
+
+# Define the number of simulations
+set.seed(123)
+n <- 100
+
+# Create an empty list to store the population data frames
+total_populations <- list()
+
+# Loop through the range of n simulations
+for (i in 1:n) {
+  # Access the current value of prob_of_bleaching_event
+  bleaching_event_prob <- runif(1)
+  
+  # Run through the function with different parameter values 
+  lhs <- simulate_bleaching_event(pop, 
+                                  bleaching_event_params = list(
+                                    prob_of_bleaching_event = bleaching_event_prob,
+                                    anemone_mortality_threshold = 0.8),
+                                  anem_params = list(
+                                    anemone_pop_size = 16))
+  # Calculate sum for the population for each simulation
+  population <- data.frame(param = bleaching_event_prob, 
+                           sum(lhs$anemone_oral_disc_area), 
+                           sum(lhs$eggs), 
+                           sum(lhs$larvae), 
+                           sum(lhs$recruits), 
+                           sum(lhs$juveniles), 
+                           sum(lhs$adults))
+  
+  names(population) <- c("param", "ODA", "eggs", "larvae", "recruits", "juveniles", "adults")
+  
+  # Store current population dataframe in a list
+  total_populations[[i]] <- population
+}
+
+# Print the last population dataframe in the list
+print(total_populations)
+
+# Convert list to a dataframe
+screen_results <- do.call(rbind, total_populations)
+
+# Find lowest number of adults
+which.min(screen_results$adults)
+
+# Graph 2: 
+# Plot the result of the parameter screen using ggplot 
+ggplot(screen_results, aes(x = param)) +
+  geom_point(aes(y = adults), color = "black") +
+  xlab("Probability of thermal bleaching for each anemone") +
+  ylab("Number of adult inhabitants") +
+  theme_bw()
+```
+
+
