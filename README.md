@@ -23,7 +23,9 @@ The model contains 7 functions which simulate the following events:
 
 Further details on the operations of each function can be found in the report. 
 
-!(figs/model_functions.png)
+<p align="center">
+  <img src="figs/model_functions.pptx" alt="" width="700" height="500" />
+</p>
 
 ### Repository Folder Structure:
 ```
