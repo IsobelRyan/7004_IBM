@@ -11,7 +11,7 @@ For my project, I aimed to model anemonefish recruitment networks to explore the
 
 ### Model Functions:
 
-The model contains 7 functions which each simulate the following events: 
+The model contains 7 functions which simulate the following events: 
 
 1. Inital anemonefish population 
 2. Egg production 
@@ -21,7 +21,7 @@ The model contains 7 functions which each simulate the following events:
 6. Adults
 7. Bleaching event 
 
-For each of the life stages, this simulates the number of surviving individuals from the previous lifestage. 
+Further details on the operations of each function can be found in the report. 
 
 !(figs/model_functions.png)
 
